@@ -490,12 +490,6 @@ code{padding:2px 7px;border-radius:6px;background:var(--panel);
 
 .site-foot{padding:34px 0 0;font-size:13px;color:var(--muted);text-align:center}
 
-.toast{
-  position:fixed;left:50%;bottom:22px;transform:translateX(-50%);
-  z-index:50;padding:11px 22px;border-radius:var(--r-pill);
-  background:var(--ink);color:var(--canvas);
-  font-size:13px;box-shadow:0 12px 30px rgba(23,24,26,.3);
-}
 
 /* ── reveal on scroll ── */
 .reveal{opacity:0;transform:translateY(18px)}
@@ -540,8 +534,7 @@ code{padding:2px 7px;border-radius:6px;background:var(--panel);
   .ring-label{font-size:13px}
   .chart{height:210px}
   .heat-cell{width:13px;height:13px}
-  .toast{left:16px;right:16px;transform:none;text-align:center}
-  /* tilt is a pointer affordance — drop it on touch layouts */
+    /* tilt is a pointer affordance — drop it on touch layouts */
   .card-tilt:hover{transform:none;box-shadow:var(--shadow-rest)}
   .card-tilt:hover > *{transform:none}
 }
@@ -662,3 +655,47 @@ code{padding:2px 7px;border-radius:6px;background:var(--panel);
 @media (prefers-reduced-motion:reduce){
   .card.is-zoomed{transform:scale(1.3)!important}
 }
+
+/* ============================================================
+   Chart series colours — literal hex so they render even if a
+   custom property fails to resolve
+   ============================================================ */
+
+.line-chart .line-manual{stroke:#4C9A6A}   /* typed by you   */
+.line-chart .line-ai{stroke:#CF5C48}       /* copied / pasted */
+.line-chart .line-path{stroke-width:3}
+.line-chart .d-manual{fill:#4C9A6A}
+.line-chart .d-ai{fill:#CF5C48}
+
+.swatch-manual{background:#4C9A6A}
+.swatch-ai{background:#CF5C48}
+.swatch-green{background:#4C9A6A}
+.swatch-amber{background:#D69A3B}
+
+/* ============================================================
+   Bar hover — the hovered column lifts, scales and darkens
+   ============================================================ */
+
+.chart-col{
+  transform-origin:bottom center;
+  transition:transform var(--t-fast) var(--ease);
+}
+.chart-col:hover{transform:scale(1.08);z-index:3}
+
+.bar-wrote,.bar-pasted{transition:height .9s var(--ease), background var(--t-fast) var(--ease)}
+.chart-col:hover .bar-wrote{background:#35704B}    /* darker green  */
+.chart-col:hover .bar-pasted{background:#A9741C}   /* darker amber  */
+
+/* ============================================================
+   Detail box hover — light green across the whole card
+   ============================================================ */
+
+.card-tilt:hover{background:#E4F3EA}
+.card-tilt:hover .card-title,
+.card-tilt:hover .hero-title{color:#17181A}
+.card-tilt:hover .panel-dark{background:var(--dark-panel-2)}
+.card-tilt:hover .uploader{background:#FFFFFF}
+.card-tilt:hover .seg{background:#FFFFFF}
+.card-tilt:hover .week-bar,
+.card-tilt:hover .meter{background:#D3E9DC}
+.card.is-zoomed{background:#FFFFFF}
