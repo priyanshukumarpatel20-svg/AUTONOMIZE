@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Autonomize — Dashboard</title>
 
-<!-- favicon: drop your file at assets/favicon.png -->
-<link rel="icon" type="image/png" href="assets/favicon.png">
-<link rel="apple-touch-icon" href="assets/favicon.png">
+<!-- favicon: drop your file at favicon.png -->
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Inter+Tight:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -21,7 +21,7 @@
   <div class="topbar-inner">
 
     <a class="brand" href="#main">
-      <img class="brand-mark" id="brandMark" src="assets/logo.png" alt="Autonomize logo" width="34" height="34">
+      <img class="brand-mark" id="brandMark" src="logo.png" alt="Autonomize logo" width="34" height="34">
       <span class="brand-name">Autonomize</span>
     </a>
 
@@ -128,19 +128,33 @@
       <p class="card-note">tracked today</p>
     </article>
 
-    <article class="card card-tilt span-3">
-      <h2 class="card-title">Exam &amp; assignment integrity</h2>
-      <p class="card-sub">Strict mode — quizzes, exams, and graded assignment portals</p>
-      <p class="risk-line">
-        <span class="badge badge-risk"><span class="status-dot dot-risk" aria-hidden="true"></span>High risk</span>
-        <span class="risk-score">0<small>/100</small></span>
-      </p>
-      <p class="card-note">−75.0 vs. your exam baseline</p>
-      <div class="meter"><span class="meter-fill" style="width:3%"></span></div>
+    <article class="card card-tilt span-3" id="profileCard">
+      <h2 class="card-title">Your profile</h2>
+      <p class="card-sub">Shown only to you</p>
 
-      <div class="panel-dark">
-        <h3 class="panel-dark-title">Recent graded sessions</h3>
-        <ul class="graded-list" id="gradedList"></ul>
+      <div class="uploader" id="dropzone" tabindex="0" role="button"
+           aria-label="Upload a profile photo. Click, press Enter, or drop an image here.">
+        <img class="uploader-img" id="previewImg" alt="" hidden>
+        <div class="uploader-empty" id="uploaderEmpty">
+          <span class="uploader-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+          </span>
+          <p class="uploader-title">Add a photo</p>
+          <p class="uploader-hint">Click or drop an image<br>JPG, PNG or WebP · max 2 MB</p>
+        </div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
+      </div>
+
+      <p class="uploader-error" id="uploadError" role="alert" hidden></p>
+
+      <div class="profile-meta">
+        <p class="profile-name">Priyanshu Kumar Patel</p>
+        <p class="profile-role">Branch IT-03 · Telemetry active</p>
+      </div>
+
+      <div class="profile-actions">
+        <button class="btn btn-primary" id="changeBtn" type="button">Change photo</button>
+        <button class="btn btn-ghost" id="removeBtn" type="button" hidden>Remove</button>
       </div>
     </article>
 
@@ -150,14 +164,18 @@
   <section class="grid" aria-label="Writing composition">
 
     <article class="card card-tilt span-8" id="compositionCard">
-      <h2 class="card-title">What you wrote vs. what was pasted</h2>
-      <p class="card-sub">Characters produced each day — the evidence behind your score</p>
+      <header class="card-head">
+        <div>
+          <h2 class="card-title">What you wrote vs. what was pasted</h2>
+          <p class="card-sub">Characters produced each day — the evidence behind your score</p>
+        </div>
+        <div class="seg" role="group" aria-label="Chart view">
+          <button class="seg-btn is-on" type="button" data-view="bars" aria-pressed="true">Bars</button>
+          <button class="seg-btn" type="button" data-view="lines" aria-pressed="false">Lines</button>
+        </div>
+      </header>
 
-      <div class="legend">
-        <span class="legend-item"><i class="swatch swatch-green"></i>You wrote <strong>6.2k</strong></span>
-        <span class="legend-item"><i class="swatch swatch-amber"></i>Pasted in <strong>2.2k</strong></span>
-        <span class="legend-pct">73% yours</span>
-      </div>
+      <div class="legend" id="chartLegend"></div>
 
       <div class="chart" id="chart"></div>
 
@@ -198,33 +216,19 @@
       </footer>
     </article>
 
-    <article class="card card-tilt span-4" id="profileCard">
-      <h2 class="card-title">Your profile</h2>
-      <p class="card-sub">Shown only to you</p>
+    <article class="card card-tilt span-4">
+      <h2 class="card-title">Exam &amp; assignment integrity</h2>
+      <p class="card-sub">Strict mode — quizzes, exams, and graded assignment portals</p>
+      <p class="risk-line">
+        <span class="badge badge-risk"><span class="status-dot dot-risk" aria-hidden="true"></span>High risk</span>
+        <span class="risk-score">0<small>/100</small></span>
+      </p>
+      <p class="card-note">−75.0 vs. your exam baseline</p>
+      <div class="meter"><span class="meter-fill" style="width:3%"></span></div>
 
-      <div class="uploader" id="dropzone" tabindex="0" role="button"
-           aria-label="Upload a profile photo. Click, press Enter, or drop an image here.">
-        <img class="uploader-img" id="previewImg" alt="" hidden>
-        <div class="uploader-empty" id="uploaderEmpty">
-          <span class="uploader-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
-          </span>
-          <p class="uploader-title">Add a photo</p>
-          <p class="uploader-hint">Click or drop an image<br>JPG, PNG or WebP · max 2 MB</p>
-        </div>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
-      </div>
-
-      <p class="uploader-error" id="uploadError" role="alert" hidden></p>
-
-      <div class="profile-meta">
-        <p class="profile-name">Priyanshu Kumar Patel</p>
-        <p class="profile-role">Branch IT-03 · Telemetry active</p>
-      </div>
-
-      <div class="profile-actions">
-        <button class="btn btn-primary" id="changeBtn" type="button">Change photo</button>
-        <button class="btn btn-ghost" id="removeBtn" type="button" hidden>Remove</button>
+      <div class="panel-dark">
+        <h3 class="panel-dark-title">Recent graded sessions</h3>
+        <ul class="graded-list" id="gradedList"></ul>
       </div>
     </article>
 
