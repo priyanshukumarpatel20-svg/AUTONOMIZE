@@ -2,7 +2,7 @@
    Autonomize dashboard — design system
    Palette sampled from the reference: warm cream canvas,
    white cards, green/amber data, ink for emphasis.
-   =========================================================== */
+   ============================================================ */
 
 :root{
   --canvas:#F3EFE6;
@@ -550,3 +550,14 @@ code{padding:2px 7px;border-radius:6px;background:var(--panel);
 [hidden]{display:none!important}
 .avatar-initials{font-size:13px;font-weight:700;letter-spacing:.02em}
 .heat-cell.l0,.scale-box.l0{background:var(--panel)}
+
+/* ── logo fallback: shown only if assets/logo.png is missing ── */
+.brand.no-logo::before{
+  content:"A";
+  display:grid;place-items:center;
+  width:34px;height:34px;flex-shrink:0;
+  border-radius:11px;
+  background:var(--ink);color:var(--canvas);
+  font-family:var(--font-display);font-size:19px;font-weight:800;
+  box-shadow:0 2px 8px rgba(23,24,26,.16);
+}
