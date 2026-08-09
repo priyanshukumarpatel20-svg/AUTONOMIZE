@@ -132,24 +132,57 @@
   }
 
   /* ==========================================================
-     Double-click to zoom a card by 30%
+     Double-click to zoom a card
+     The card is scaled and translated to the centre of the
+     viewport, with the scale capped so it always fits on screen.
+     Everything else dims; the zoomed card keeps full brightness.
      ========================================================== */
 
   (function zoom() {
-    var veil = document.createElement('div');
-    veil.className = 'zoom-veil';
-    document.body.appendChild(veil);
-
-    var open = null;
+    var ZOOM = 1.3;
+    var MARGIN = 24;
     var REST = 'Double-click to zoom';
     var SHUT = 'Double-click to close';
 
+    var open = null;
+    var frame = null;
+
+    function place(card) {
+      /* measure the card in its untransformed position */
+      card.style.removeProperty('transform');
+      var r  = card.getBoundingClientRect();
+      var vw = document.documentElement.clientWidth;
+      var vh = document.documentElement.clientHeight;
+
+      /* never let the card grow past the viewport */
+      var scale = Math.min(ZOOM, (vw - MARGIN * 2) / r.width, (vh - MARGIN * 2) / r.height);
+      scale = Math.max(scale, 1);
+
+      var dx = vw / 2 - (r.left + r.width  / 2);
+      var dy = vh / 2 - (r.top  + r.height / 2);
+
+      card.style.setProperty(
+        'transform',
+        'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) scale(' + scale.toFixed(3) + ')',
+        'important'
+      );
+    }
+
+    function reposition() {
+      if (!open) return;
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(function () { place(open); });
+    }
+
     function close() {
       if (!open) return;
+      open.style.removeProperty('transform');
       open.classList.remove('is-zoomed');
       open.querySelector('.zoom-hint').textContent = REST;
+      var grid = open.closest('.grid');
+      if (grid) grid.classList.remove('has-zoom');
       open = null;
-      veil.classList.remove('is-on');
+      document.body.classList.remove('has-zoom');
     }
 
     $$('.card-tilt').forEach(function (card) {
@@ -164,17 +197,28 @@
 
         if (open === card) { close(); return; }
         close();
+
         card.classList.add('is-zoomed');
+        var grid = card.closest('.grid');
+        if (grid) grid.classList.add('has-zoom');
+        document.body.classList.add('has-zoom');
         hint.textContent = SHUT;
         open = card;
-        veil.classList.add('is-on');
+        place(card);
       });
     });
 
-    veil.addEventListener('click', close);
+    /* clicking anywhere outside the zoomed card closes it */
+    document.addEventListener('click', function (e) {
+      if (open && !e.target.closest('.is-zoomed')) close();
+    });
+
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') close();
     });
+
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, { passive: true });
   })();
 
   /* ==========================================================
@@ -355,10 +399,61 @@
 
     function dots(key, cls) {
       return rows.map(function (d, i) {
-        return '<circle class="line-dot ' + cls + '" cx="' + xAt(i).toFixed(1) + '" cy="' +
-               yAt(d[key]).toFixed(1) + '" r="3.6"><title>' + d.day + ' · ' + d[key] +
-               ' characters</title></circle>';
+        return '<circle class="line-dot ' + cls + '" data-i="' + i + '" cx="' + xAt(i).toFixed(1) +
+               '" cy="' + yAt(d[key]).toFixed(1) + '" r="3.6"/>';
       }).join('');
+    }
+
+    /* hover readout: nearest data point, crosshair, enlarged dots */
+    function bindReadout() {
+      var svg    = host.querySelector('.line-chart');
+      var tip    = host.querySelector('.line-tip');
+      var cursor = host.querySelector('.line-cursor');
+      var step   = (W - PAD_X * 2) / (rows.length - 1);
+      var hot    = -1;
+
+      function clearHot() {
+        $$('.line-dot.is-hot', host).forEach(function (c) { c.classList.remove('is-hot'); });
+      }
+
+      function hide() {
+        hot = -1;
+        clearHot();
+        tip.hidden = true;
+        cursor.classList.remove('is-on');
+      }
+
+      function move(e) {
+        var box = svg.getBoundingClientRect();
+        var x   = (e.clientX - box.left) / box.width * W;
+        var i   = Math.round((x - PAD_X) / step);
+        i = Math.max(0, Math.min(rows.length - 1, i));
+        if (i === hot) return;
+        hot = i;
+
+        var d = rows[i];
+        clearHot();
+        $$('.line-dot[data-i="' + i + '"]', host).forEach(function (c) { c.classList.add('is-hot'); });
+
+        cursor.setAttribute('x1', xAt(i).toFixed(1));
+        cursor.setAttribute('x2', xAt(i).toFixed(1));
+        cursor.classList.add('is-on');
+
+        tip.innerHTML =
+          '<p class="line-tip-day">' + d.day + '</p>' +
+          '<p class="line-tip-row"><span><i class="line-tip-dot t-manual"></i>Typed</span>' +
+            '<strong>' + d.wrote.toLocaleString() + '</strong></p>' +
+          '<p class="line-tip-row"><span><i class="line-tip-dot t-ai"></i>Pasted</span>' +
+            '<strong>' + d.pasted.toLocaleString() + '</strong></p>';
+        tip.hidden = false;
+
+        var left = xAt(i) / W * box.width;
+        tip.style.left = Math.max(84, Math.min(box.width - 84, left)) + 'px';
+        tip.style.top  = (Math.min(yAt(d.wrote), yAt(d.pasted)) / H * box.height) + 'px';
+      }
+
+      svg.addEventListener('mousemove', move);
+      svg.addEventListener('mouseleave', hide);
     }
 
     function drawLines() {
@@ -372,11 +467,15 @@
         '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
              'aria-label="Characters written manually versus AI-copied, each day">' +
           grid +
+          '<line class="line-cursor" y1="' + TOP + '" y2="' + BOT + '" x1="0" x2="0"/>' +
           '<polyline class="line-path line-ai"     points="' + points('pasted') + '"/>' +
           '<polyline class="line-path line-manual" points="' + points('wrote')  + '"/>' +
           dots('pasted', 'd-ai') +
           dots('wrote',  'd-manual') +
-        '</svg>';
+        '</svg>' +
+        '<div class="line-tip" hidden></div>';
+
+      bindReadout();
 
       /* draw-on animation */
       $$('#chart .line-path').forEach(function (path) {
