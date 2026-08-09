@@ -132,6 +132,52 @@
   }
 
   /* ==========================================================
+     Double-click to zoom a card by 30%
+     ========================================================== */
+
+  (function zoom() {
+    var veil = document.createElement('div');
+    veil.className = 'zoom-veil';
+    document.body.appendChild(veil);
+
+    var open = null;
+    var REST = 'Double-click to zoom';
+    var SHUT = 'Double-click to close';
+
+    function close() {
+      if (!open) return;
+      open.classList.remove('is-zoomed');
+      open.querySelector('.zoom-hint').textContent = REST;
+      open = null;
+      veil.classList.remove('is-on');
+    }
+
+    $$('.card-tilt').forEach(function (card) {
+      var hint = document.createElement('span');
+      hint.className = 'zoom-hint';
+      hint.textContent = REST;
+      card.appendChild(hint);
+
+      card.addEventListener('dblclick', function (e) {
+        /* leave interactive controls alone */
+        if (e.target.closest('button, input, a, .uploader, .seg')) return;
+
+        if (open === card) { close(); return; }
+        close();
+        card.classList.add('is-zoomed');
+        hint.textContent = SHUT;
+        open = card;
+        veil.classList.add('is-on');
+      });
+    });
+
+    veil.addEventListener('click', close);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') close();
+    });
+  })();
+
+  /* ==========================================================
      Reveal on scroll
      ========================================================== */
 
@@ -252,34 +298,113 @@
   })();
 
   /* ==========================================================
-     Composition chart
+     Composition chart — bar view and two-line view
      ========================================================== */
 
   (function chart() {
-    var peak = DATA.chart.reduce(function (m, d) {
-      return Math.max(m, d.wrote + d.pasted);
-    }, 0);
-
-    $('#chart').innerHTML = DATA.chart.map(function (d) {
-      var total = d.wrote + d.pasted;
-      return '<div class="chart-col" title="' + d.day + '">' +
-        '<span class="chart-tip">' + d.day + ' · ' + d.wrote + ' written / ' + d.pasted + ' pasted</span>' +
-        '<div class="bar-pasted" style="height:0" data-h="' + (d.pasted / peak * 100) + '"></div>' +
-        '<div class="bar-wrote"  style="height:0" data-h="' + (d.wrote  / peak * 100) + '"></div>' +
-      '</div>';
-    }).join('');
+    var host   = $('#chart');
+    var legend = $('#chartLegend');
+    var rows   = DATA.chart;
+    var peak   = rows.reduce(function (m, d) { return Math.max(m, d.wrote + d.pasted); }, 0);
+    var linePeak = rows.reduce(function (m, d) { return Math.max(m, d.wrote, d.pasted); }, 0);
 
     var axis = document.createElement('p');
     axis.className = 'chart-axis';
-    axis.innerHTML = '<span>' + DATA.chart[0].day + '</span>' +
-                     '<span>' + DATA.chart[DATA.chart.length - 1].day + '</span>';
-    $('#chart').insertAdjacentElement('afterend', axis);
+    axis.innerHTML = '<span>' + rows[0].day + '</span>' +
+                     '<span>' + rows[rows.length - 1].day + '</span>';
+    host.insertAdjacentElement('afterend', axis);
 
-    requestAnimationFrame(function () {
-      $$('#chart [data-h]').forEach(function (bar) {
-        bar.style.height = bar.getAttribute('data-h') + '%';
+    /* ---- legend ---- */
+    function drawLegend(view) {
+      legend.innerHTML = view === 'bars'
+        ? '<span class="legend-item"><i class="swatch swatch-green"></i>You wrote <strong>6.2k</strong></span>' +
+          '<span class="legend-item"><i class="swatch swatch-amber"></i>Pasted in <strong>2.2k</strong></span>' +
+          '<span class="legend-pct">73% yours</span>'
+        : '<span class="legend-item"><i class="swatch swatch-line swatch-manual"></i>Written manually <strong>6.2k</strong></span>' +
+          '<span class="legend-item"><i class="swatch swatch-line swatch-ai"></i>AI-copied / pasted <strong>2.2k</strong></span>' +
+          '<span class="legend-pct">73% yours</span>';
+    }
+
+    /* ---- bar view ---- */
+    function drawBars() {
+      host.innerHTML = rows.map(function (d) {
+        return '<div class="chart-col" title="' + d.day + '">' +
+          '<span class="chart-tip">' + d.day + ' · ' + d.wrote + ' written / ' + d.pasted + ' pasted</span>' +
+          '<div class="bar-pasted" style="height:0" data-h="' + (d.pasted / peak * 100).toFixed(2) + '"></div>' +
+          '<div class="bar-wrote"  style="height:0" data-h="' + (d.wrote  / peak * 100).toFixed(2) + '"></div>' +
+        '</div>';
+      }).join('');
+      host.style.display = 'grid';
+
+      requestAnimationFrame(function () {
+        $$('#chart [data-h]').forEach(function (bar) {
+          bar.style.height = bar.getAttribute('data-h') + '%';
+        });
+      });
+    }
+
+    /* ---- line view ---- */
+    var W = 700, H = 250, PAD_X = 12, TOP = 16, BOT = 232;
+
+    function xAt(i) { return PAD_X + i * ((W - PAD_X * 2) / (rows.length - 1)); }
+    function yAt(v) { return BOT - (v / linePeak) * (BOT - TOP); }
+
+    function points(key) {
+      return rows.map(function (d, i) { return xAt(i).toFixed(1) + ',' + yAt(d[key]).toFixed(1); }).join(' ');
+    }
+
+    function dots(key, cls) {
+      return rows.map(function (d, i) {
+        return '<circle class="line-dot ' + cls + '" cx="' + xAt(i).toFixed(1) + '" cy="' +
+               yAt(d[key]).toFixed(1) + '" r="3.6"><title>' + d.day + ' · ' + d[key] +
+               ' characters</title></circle>';
+      }).join('');
+    }
+
+    function drawLines() {
+      host.style.display = 'block';
+      var grid = [0, 0.5, 1].map(function (t) {
+        var y = (TOP + (BOT - TOP) * t).toFixed(1);
+        return '<line class="line-grid" x1="' + PAD_X + '" y1="' + y + '" x2="' + (W - PAD_X) + '" y2="' + y + '"/>';
+      }).join('');
+
+      host.innerHTML =
+        '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+             'aria-label="Characters written manually versus AI-copied, each day">' +
+          grid +
+          '<polyline class="line-path line-ai"     points="' + points('pasted') + '"/>' +
+          '<polyline class="line-path line-manual" points="' + points('wrote')  + '"/>' +
+          dots('pasted', 'd-ai') +
+          dots('wrote',  'd-manual') +
+        '</svg>';
+
+      /* draw-on animation */
+      $$('#chart .line-path').forEach(function (path) {
+        var len = path.getTotalLength();
+        path.style.strokeDasharray = len;
+        path.style.strokeDashoffset = REDUCED ? 0 : len;
+        if (!REDUCED) requestAnimationFrame(function () { path.style.strokeDashoffset = 0; });
+      });
+    }
+
+    function render(view) {
+      drawLegend(view);
+      if (view === 'bars') drawBars(); else drawLines();
+    }
+
+    $$('.seg-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        $$('.seg-btn').forEach(function (b) {
+          b.classList.remove('is-on');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        btn.classList.add('is-on');
+        btn.setAttribute('aria-pressed', 'true');
+        render(btn.getAttribute('data-view'));
       });
     });
+
+    render('bars');
   })();
 
   /* ==========================================================
