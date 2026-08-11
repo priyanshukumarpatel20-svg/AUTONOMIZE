@@ -1,7 +1,7 @@
 /* ============================================================
    Autonomize dashboard — behaviour
    Sections: theme · navigation · card tilt · reveal · charts
-             · heatmap · accordion · photo upload
+             · calendar · accordion · photo upload
    ============================================================ */
 
 (function () {
@@ -54,6 +54,25 @@
       { site: 'docs.google.com', cat: 'Writing',     ago: '6d ago', mins: 33, score: 86,  tone: 'muted' },
       { site: 'chatgpt.com',     cat: 'AI assistant',ago: '6d ago', mins: 12, score: null,tone: 'amber' }
     ],
+    coins: {
+      /* every entry follows the stated rule, so the arithmetic can be checked:
+         +10 for a session with nothing pasted, -1 per 100 characters pasted   */
+      opening: 214,
+      ledger: [
+        { task: 'dijkstra.py',            site: 'github.com',      pasted: 0,   delta:  10 },
+        { task: 'Compiler design notes',  site: 'docs.google.com', pasted: 0,   delta:  10 },
+        { task: 'Lab report \u2014 unit 3',    site: 'overleaf.com',    pasted: 0,   delta:  10 },
+        { task: 'Assignment 4 draft',     site: 'docs.google.com', pasted: 320, delta:  -3 },
+        { task: 'Unit 3 summary',         site: 'chatgpt.com',     pasted: 610, delta:  -6 },
+        { task: 'Quiz 2 (graded)',        site: 'forms.gle',       pasted: 780, delta: -12 }
+      ],
+      tiers: [
+        { name: 'Bronze',   at: 0   },
+        { name: 'Silver',   at: 100 },
+        { name: 'Gold',     at: 250 },
+        { name: 'Platinum', at: 500 }
+      ]
+    },
     graded: [
       { site: 'docs.google.com', when: '2026-08-04', detail: '3 AI-linked pastes, 5 tab switches', score: 0 },
       { site: 'forms.gle',       when: '2026-08-01', detail: '1 AI-linked paste, 2 tab switches',  score: 42 }
@@ -104,10 +123,6 @@
   window.addEventListener('scroll', function () {
     topbar.classList.toggle('is-stuck', window.scrollY > 8);
   }, { passive: true });
-
-  $('#navAvatar').addEventListener('click', function () {
-    $('#profileCard').scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'center' });
-  });
 
   /* ==========================================================
      Card tilt — cursor-tracked 3D, capped so it stays subtle
@@ -387,20 +402,43 @@
       });
     }
 
-    /* ---- line view ---- */
-    var W = 700, H = 250, PAD_X = 12, TOP = 16, BOT = 232;
+    /* ---- line view: smooth curves over a soft filled area ---- */
+    var W = 760, H = 300, PL = 46, PR = 14, PT = 16, PB = 44;
+    var PLOT_W = W - PL - PR, PLOT_H = H - PT - PB;
 
-    function xAt(i) { return PAD_X + i * ((W - PAD_X * 2) / (rows.length - 1)); }
-    function yAt(v) { return BOT - (v / linePeak) * (BOT - TOP); }
+    function niceMax(v) {
+      var step = Math.pow(10, Math.floor(Math.log(v) / Math.LN10)) / 2;
+      return Math.ceil(v / step) * step;
+    }
+    var TOP_V = niceMax(linePeak);
 
-    function points(key) {
-      return rows.map(function (d, i) { return xAt(i).toFixed(1) + ',' + yAt(d[key]).toFixed(1); }).join(' ');
+    function xAt(i) { return PL + i * (PLOT_W / (rows.length - 1)); }
+    function yAt(v) { return PT + PLOT_H - (v / TOP_V) * PLOT_H; }
+
+    function kfmt(v) { return v >= 1000 ? (v / 1000).toFixed(v % 1000 ? 1 : 0) + 'k' : String(v); }
+
+    /* Catmull-Rom through the points, converted to cubic beziers */
+    function curve(key) {
+      var p = rows.map(function (d, i) { return [xAt(i), yAt(d[key])]; });
+      var out = 'M' + p[0][0].toFixed(1) + ',' + p[0][1].toFixed(1);
+      for (var i = 0; i < p.length - 1; i++) {
+        var p0 = p[i - 1] || p[i], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2] || p2;
+        out += 'C' + (p1[0] + (p2[0] - p0[0]) / 6).toFixed(1) + ',' + (p1[1] + (p2[1] - p0[1]) / 6).toFixed(1) +
+               ' ' + (p2[0] - (p3[0] - p1[0]) / 6).toFixed(1) + ',' + (p2[1] - (p3[1] - p1[1]) / 6).toFixed(1) +
+               ' ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1);
+      }
+      return out;
+    }
+
+    function area(key) {
+      return curve(key) + 'L' + xAt(rows.length - 1).toFixed(1) + ',' + (PT + PLOT_H) +
+             'L' + xAt(0).toFixed(1) + ',' + (PT + PLOT_H) + 'Z';
     }
 
     function dots(key, cls) {
       return rows.map(function (d, i) {
         return '<circle class="line-dot ' + cls + '" data-i="' + i + '" cx="' + xAt(i).toFixed(1) +
-               '" cy="' + yAt(d[key]).toFixed(1) + '" r="3.6"/>';
+               '" cy="' + yAt(d[key]).toFixed(1) + '" r="0"/>';
       }).join('');
     }
 
@@ -409,7 +447,7 @@
       var svg    = host.querySelector('.line-chart');
       var tip    = host.querySelector('.line-tip');
       var cursor = host.querySelector('.line-cursor');
-      var step   = (W - PAD_X * 2) / (rows.length - 1);
+      var step   = PLOT_W / (rows.length - 1);
       var hot    = -1;
 
       function clearHot() {
@@ -417,8 +455,7 @@
       }
 
       function hide() {
-        hot = -1;
-        clearHot();
+        hot = -1; clearHot();
         tip.hidden = true;
         cursor.classList.remove('is-on');
       }
@@ -426,7 +463,7 @@
       function move(e) {
         var box = svg.getBoundingClientRect();
         var x   = (e.clientX - box.left) / box.width * W;
-        var i   = Math.round((x - PAD_X) / step);
+        var i   = Math.round((x - PL) / step);
         i = Math.max(0, Math.min(rows.length - 1, i));
         if (i === hot) return;
         hot = i;
@@ -448,7 +485,7 @@
         tip.hidden = false;
 
         var left = xAt(i) / W * box.width;
-        tip.style.left = Math.max(84, Math.min(box.width - 84, left)) + 'px';
+        tip.style.left = Math.max(86, Math.min(box.width - 86, left)) + 'px';
         tip.style.top  = (Math.min(yAt(d.wrote), yAt(d.pasted)) / H * box.height) + 'px';
       }
 
@@ -458,32 +495,56 @@
 
     function drawLines() {
       host.style.display = 'block';
-      var grid = [0, 0.5, 1].map(function (t) {
-        var y = (TOP + (BOT - TOP) * t).toFixed(1);
-        return '<line class="line-grid" x1="' + PAD_X + '" y1="' + y + '" x2="' + (W - PAD_X) + '" y2="' + y + '"/>';
+
+      var ticks = [0, 0.25, 0.5, 0.75, 1];
+      var gridY = ticks.map(function (t) {
+        var y = (PT + PLOT_H - t * PLOT_H).toFixed(1);
+        return '<line class="line-grid" x1="' + PL + '" y1="' + y + '" x2="' + (W - PR) + '" y2="' + y + '"/>' +
+               '<text class="line-axis" x="' + (PL - 10) + '" y="' + (+y + 4) + '" text-anchor="end">' +
+                 kfmt(Math.round(TOP_V * t)) + '</text>';
+      }).join('');
+
+      var labels = rows.map(function (d, i) {
+        if (i % 2 !== 0 && i !== rows.length - 1) return '';
+        return '<text class="line-axis" x="' + xAt(i).toFixed(1) + '" y="' + (H - 16) +
+               '" text-anchor="middle">' + d.day + '</text>';
       }).join('');
 
       host.innerHTML =
-        '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
-             'aria-label="Characters written manually versus AI-copied, each day">' +
-          grid +
-          '<line class="line-cursor" y1="' + TOP + '" y2="' + BOT + '" x1="0" x2="0"/>' +
-          '<polyline class="line-path line-ai"     points="' + points('pasted') + '"/>' +
-          '<polyline class="line-path line-manual" points="' + points('wrote')  + '"/>' +
+        '<svg class="line-chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" ' +
+             'role="img" aria-label="Characters typed versus pasted, each day">' +
+          '<defs>' +
+            '<linearGradient id="fillManual" x1="0" y1="0" x2="0" y2="1">' +
+              '<stop offset="0%" stop-color="#4C9A6A" stop-opacity=".26"/>' +
+              '<stop offset="100%" stop-color="#4C9A6A" stop-opacity="0"/>' +
+            '</linearGradient>' +
+            '<linearGradient id="fillAi" x1="0" y1="0" x2="0" y2="1">' +
+              '<stop offset="0%" stop-color="#CF5C48" stop-opacity=".22"/>' +
+              '<stop offset="100%" stop-color="#CF5C48" stop-opacity="0"/>' +
+            '</linearGradient>' +
+          '</defs>' +
+          gridY + labels +
+          '<line class="line-cursor" y1="' + PT + '" y2="' + (PT + PLOT_H) + '" x1="0" x2="0"/>' +
+          '<path class="line-area" d="' + area('wrote')  + '" fill="url(#fillManual)"/>' +
+          '<path class="line-area" d="' + area('pasted') + '" fill="url(#fillAi)"/>' +
+          '<path class="line-path line-ai"     d="' + curve('pasted') + '"/>' +
+          '<path class="line-path line-manual" d="' + curve('wrote')  + '"/>' +
           dots('pasted', 'd-ai') +
           dots('wrote',  'd-manual') +
         '</svg>' +
         '<div class="line-tip" hidden></div>';
 
-      bindReadout();
-
-      /* draw-on animation */
       $$('#chart .line-path').forEach(function (path) {
         var len = path.getTotalLength();
         path.style.strokeDasharray = len;
         path.style.strokeDashoffset = REDUCED ? 0 : len;
         if (!REDUCED) requestAnimationFrame(function () { path.style.strokeDashoffset = 0; });
       });
+      requestAnimationFrame(function () {
+        $$('#chart .line-dot').forEach(function (c) { c.setAttribute('r', '3.6'); });
+      });
+
+      bindReadout();
     }
 
     function render(view) {
@@ -504,6 +565,56 @@
     });
 
     render('bars');
+  })();
+
+  /* ==========================================================
+     Autonomize Coins
+     Earned for finishing work unaided; spent when text is pasted in.
+     ========================================================== */
+
+  (function coins() {
+    var C = DATA.coins;
+
+    var balance = C.ledger.reduce(function (t, e) { return t + e.delta; }, C.opening);
+    var week    = C.ledger.reduce(function (t, e) { return t + e.delta; }, 0);
+
+    /* current tier and distance to the next */
+    var tier = C.tiers[0], next = null;
+    C.tiers.forEach(function (t) { if (balance >= t.at) tier = t; });
+    C.tiers.forEach(function (t) { if (next === null && t.at > balance) next = t; });
+
+    $('#coinTier').textContent = tier.name;
+    $('#coinNext').textContent = next
+      ? (next.at - balance) + ' to ' + next.name
+      : 'top tier';
+
+    var span = next ? next.at - tier.at : 1;
+    var into = next ? balance - tier.at : span;
+    requestAnimationFrame(function () {
+      $('#coinFill').style.width = Math.round(into / span * 100) + '%';
+    });
+
+    var delta = $('#coinDelta');
+    delta.textContent = (week >= 0 ? '+' : '\u2212') + Math.abs(week) + ' this week';
+    delta.className = 'coin-delta ' + (week >= 0 ? 'up' : 'down');
+
+    $('#coinLedger').innerHTML = C.ledger.slice().reverse().map(function (e) {
+      var up = e.delta >= 0;
+      var why = e.pasted === 0
+        ? 'nothing pasted'
+        : e.pasted.toLocaleString() + ' characters pasted';
+      return '<li class="coin-row">' +
+        '<span class="coin-row-body">' +
+          '<span class="coin-task">' + e.task + '</span>' +
+          '<span class="coin-why">' + e.site + ' \u00b7 ' + why + '</span>' +
+        '</span>' +
+        '<span class="coin-amt ' + (up ? 'up' : 'down') + '">' +
+          (up ? '+' : '\u2212') + Math.abs(e.delta) +
+        '</span>' +
+      '</li>';
+    }).join('');
+
+    countTo($('#coinBalance'), balance, 1200);
   })();
 
   /* ==========================================================
@@ -548,30 +659,184 @@
   })();
 
   /* ==========================================================
-     Activity heatmap — 20 weeks, deterministic seed
+     Activity calendar — click a day for its typed/pasted detail
      ========================================================== */
 
-  (function heatmap() {
-    var seed = 20260805;
-    function rand() {
-      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-      return seed / 0x7fffffff;
+  (function calendar() {
+    var SITES = [
+      { host: 'docs.google.com', cat: 'Writing',      cls: '' },
+      { host: 'chatgpt.com',     cat: 'AI assistant', cls: 'c-ai' },
+      { host: 'github.com',      cat: 'Writing',      cls: '' },
+      { host: 'overleaf.com',    cat: 'Writing',      cls: '' },
+      { host: 'forms.gle',       cat: 'Assessment',   cls: 'c-assessment' }
+    ];
+    var MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+
+    var grid    = $('#calGrid');
+    var detail  = $('#calDetail');
+    var label   = $('#calMonth');
+    var today   = new Date();
+    var view    = new Date(today.getFullYear(), today.getMonth(), 1);
+    var picked  = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    /* deterministic per-date generator, so the same day always reads the same */
+    function rng(y, m, d) {
+      var seed = ((y * 10000 + (m + 1) * 100 + d) * 2654435761) % 2147483647;
+      if (seed < 0) seed += 2147483647;
+      return function () {
+        seed = (seed * 1103515245 + 12345) % 2147483647;
+        return seed / 2147483647;
+      };
     }
 
-    var WEEKS = 20, html = '';
-    for (var w = 0; w < WEEKS; w++) {
-      html += '<div class="heat-week">';
-      for (var d = 0; d < 7; d++) {
-        var r = rand();
-        var level = r < 0.34 ? 0 : r < 0.56 ? 1 : r < 0.78 ? 2 : r < 0.93 ? 3 : 4;
-        var flagged = (w === 19 && d === 3);
-        html += '<span class="heat-cell l' + level + (flagged ? ' is-flagged' : '') + '" ' +
-                'title="' + (level === 0 ? 'No activity' : level * 25 + ' minutes tracked') +
-                (flagged ? ' · flagged graded session' : '') + '"></span>';
+    function sessionsFor(date) {
+      var r = rng(date.getFullYear(), date.getMonth(), date.getDate());
+      var dow = date.getDay();
+      var roll = r();
+      var count = (dow === 0 || dow === 6)
+        ? (roll < 0.55 ? 0 : roll < 0.85 ? 1 : 2)
+        : (roll < 0.18 ? 0 : roll < 0.45 ? 1 : roll < 0.8 ? 2 : 3);
+
+      /* nothing recorded beyond today */
+      if (date > today) count = 0;
+
+      var out = [];
+      for (var i = 0; i < count; i++) {
+        var site = SITES[Math.floor(r() * SITES.length)];
+        var typed  = Math.round(120 + r() * 900);
+        var pasted = Math.round(r() * (site.cat === 'AI assistant' ? 620 : 260));
+        var hour   = 8 + Math.floor(r() * 12);
+        var mins   = Math.round(8 + r() * 70);
+        out.push({
+          host: site.host, cat: site.cat, cls: site.cls,
+          typed: typed, pasted: pasted, mins: mins,
+          start: (hour < 10 ? '0' : '') + hour + ':' + (r() < 0.5 ? '05' : '40')
+        });
       }
-      html += '</div>';
+      return out;
     }
-    $('#heatmap').innerHTML = html;
+
+    function totals(list) {
+      return list.reduce(function (t, s) {
+        t.typed += s.typed; t.pasted += s.pasted; t.mins += s.mins;
+        t.flagged = t.flagged || (s.cat === 'Assessment' && s.pasted > 0);
+        return t;
+      }, { typed: 0, pasted: 0, mins: 0, flagged: false });
+    }
+
+    function level(chars) {
+      if (chars === 0) return 0;
+      if (chars < 700) return 1;
+      if (chars < 1600) return 2;
+      return 3;
+    }
+
+    function same(a, b) {
+      return a.getFullYear() === b.getFullYear() &&
+             a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    }
+
+    function drawGrid() {
+      var y = view.getFullYear(), m = view.getMonth();
+      label.textContent = MONTHS[m] + ' ' + y;
+
+      var first = new Date(y, m, 1).getDay();
+      var days  = new Date(y, m + 1, 0).getDate();
+      var html  = '';
+
+      for (var p = 0; p < first; p++) html += '<span class="cal-day is-pad"></span>';
+
+      for (var d = 1; d <= days; d++) {
+        var date = new Date(y, m, d);
+        var t    = totals(sessionsFor(date));
+        var lv   = level(t.typed + t.pasted);
+        var cls  = 'cal-day';
+        if (same(date, picked)) cls += ' is-on';
+        if (same(date, today))  cls += ' is-today';
+        if (t.flagged)          cls += ' is-flagged';
+
+        html += '<button type="button" class="' + cls + '" data-d="' + d + '" ' +
+                'aria-label="' + MONTHS[m] + ' ' + d + ', ' +
+                (t.typed + t.pasted) + ' characters">' +
+                  d + '<i class="cal-dot k' + lv + '"></i>' +
+                '</button>';
+      }
+      grid.innerHTML = html;
+    }
+
+    function drawDetail() {
+      var list = sessionsFor(picked);
+      var t    = totals(list);
+      var all  = t.typed + t.pasted;
+      var share = all ? Math.round(t.typed / all * 100) : 0;
+
+      var head =
+        '<div class="cal-detail-head">' +
+          '<p class="cal-date">' + MONTHS[picked.getMonth()] + ' ' + picked.getDate() + '</p>' +
+          '<p class="cal-share">' + (all ? share + '% yours \u00b7 ' + t.mins + 'm tracked' : 'nothing tracked') + '</p>' +
+        '</div>';
+
+      if (!list.length) {
+        detail.innerHTML = head +
+          '<p class="cal-empty">No activity recorded on this day. Days with tracked work show a ' +
+          'coloured dot in the calendar.</p>';
+        return;
+      }
+
+      var stats =
+        '<div class="cal-totals">' +
+          '<div class="cal-stat typed"><b>' + t.typed.toLocaleString() + '</b><span>characters typed</span></div>' +
+          '<div class="cal-stat pasted"><b>' + t.pasted.toLocaleString() + '</b><span>characters pasted</span></div>' +
+          '<div class="cal-stat"><b>' + list.length + '</b><span>' + (list.length === 1 ? 'session' : 'sessions') + '</span></div>' +
+        '</div>' +
+        '<div class="cal-split">' +
+          '<i class="s-typed" style="flex-basis:' + share + '%"></i>' +
+          '<i class="s-pasted" style="flex-basis:' + (100 - share) + '%"></i>' +
+        '</div>';
+
+      var rows = '<ul class="cal-sessions">' + list.map(function (s) {
+        var tot = s.typed + s.pasted;
+        var pct = tot ? Math.round(s.typed / tot * 100) : 0;
+        return '<li class="cal-session">' +
+          '<div class="cal-session-top">' +
+            '<span class="cal-site">' + s.host + '</span>' +
+            '<span class="cal-cat ' + s.cls + '">' + s.cat + '</span>' +
+            '<span class="cal-when">' + s.start + ' \u00b7 ' + s.mins + 'm</span>' +
+          '</div>' +
+          '<div class="cal-session-nums">' +
+            '<span class="n-typed">typed <b>' + s.typed.toLocaleString() + '</b></span>' +
+            '<span class="n-pasted">pasted <b>' + s.pasted.toLocaleString() + '</b></span>' +
+          '</div>' +
+          '<div class="cal-session-bar">' +
+            '<i class="s-typed" style="flex-basis:' + pct + '%;background:#4C9A6A"></i>' +
+            '<i class="s-pasted" style="flex-basis:' + (100 - pct) + '%;background:#CF5C48"></i>' +
+          '</div>' +
+        '</li>';
+      }).join('') + '</ul>';
+
+      detail.innerHTML = head + stats + rows;
+    }
+
+    function render() { drawGrid(); drawDetail(); }
+
+    grid.addEventListener('click', function (e) {
+      var btn = e.target.closest('.cal-day');
+      if (!btn || btn.classList.contains('is-pad')) return;
+      picked = new Date(view.getFullYear(), view.getMonth(), +btn.getAttribute('data-d'));
+      render();
+    });
+
+    $('#calPrev').addEventListener('click', function () {
+      view = new Date(view.getFullYear(), view.getMonth() - 1, 1);
+      drawGrid();
+    });
+    $('#calNext').addEventListener('click', function () {
+      view = new Date(view.getFullYear(), view.getMonth() + 1, 1);
+      drawGrid();
+    });
+
+    render();
   })();
 
   /* ==========================================================
@@ -587,7 +852,7 @@
   });
 
   /* ==========================================================
-     Profile photo upload — click, keyboard and drag-and-drop.
+     Photo upload — the header avatar is the drop target.
      FileReader only; the image never leaves this browser.
      ========================================================== */
 
@@ -595,98 +860,55 @@
     var MAX_BYTES = 2 * 1024 * 1024;
     var TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-    var drop     = $('#dropzone');
+    var wrap     = $('.avatar-wrap');
+    var avatar   = $('#navAvatar');
+    var initials = $('#navInitials');
     var input    = $('#fileInput');
-    var preview  = $('#previewImg');
-    var empty    = $('#uploaderEmpty');
-    var errorBox = $('#uploadError');
-    var changeBtn = $('#changeBtn');
-    var removeBtn = $('#removeBtn');
-    var navAvatar = $('#navAvatar');
-    var navInitials = $('#navInitials');
+    var msg      = $('#uploadError');
+    var timer    = null;
 
-    function fail(message) {
-      errorBox.textContent = message;
-      errorBox.hidden = false;
-    }
-
-    function clearError() {
-      errorBox.hidden = true;
-      errorBox.textContent = '';
+    function flash(text) {
+      msg.textContent = text;
+      msg.hidden = false;
+      clearTimeout(timer);
+      timer = setTimeout(function () { msg.hidden = true; }, 3600);
     }
 
     function show(src) {
-      preview.src = src;
-      preview.hidden = false;
-      empty.hidden = true;
-      drop.classList.add('has-image');
-      removeBtn.hidden = false;
-      changeBtn.textContent = 'Change photo';
-
-      navInitials.hidden = true;
-      var img = navAvatar.querySelector('img') || new Image();
+      var img = avatar.querySelector('img') || new Image();
       img.src = src;
       img.alt = '';
-      if (!img.parentNode) navAvatar.appendChild(img);
-    }
-
-    function reset() {
-      if (preview.src.indexOf('blob:') === 0) URL.revokeObjectURL(preview.src);
-      preview.removeAttribute('src');
-      preview.hidden = true;
-      empty.hidden = false;
-      drop.classList.remove('has-image');
-      removeBtn.hidden = true;
-      changeBtn.textContent = 'Add photo';
-      clearError();
-
-      var img = navAvatar.querySelector('img');
-      if (img) img.remove();
-      navInitials.hidden = false;
+      if (!img.parentNode) avatar.appendChild(img);
+      initials.hidden = true;
+      avatar.setAttribute('aria-label', 'Profile photo set. Click to change it.');
     }
 
     function load(file) {
       if (!file) return;
-      if (TYPES.indexOf(file.type) === -1) return fail('Choose a JPG, PNG or WebP image.');
-      if (file.size > MAX_BYTES)          return fail('That image is over 2 MB. Pick a smaller one.');
+      if (TYPES.indexOf(file.type) === -1) return flash('Choose a JPG, PNG or WebP image.');
+      if (file.size > MAX_BYTES)           return flash('That image is over 2 MB.');
 
-      clearError();
+      msg.hidden = true;
       var reader = new FileReader();
-      reader.onload = function (e) { show(e.target.result); };
-      reader.onerror = function () { fail('That file could not be read. Try another image.'); };
+      reader.onload  = function (e) { show(e.target.result); };
+      reader.onerror = function () { flash('That file could not be read.'); };
       reader.readAsDataURL(file);
     }
 
-    drop.addEventListener('click', function () { input.click(); });
-    drop.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
-    });
-
-    changeBtn.addEventListener('click', function (e) { e.stopPropagation(); input.click(); });
-    removeBtn.addEventListener('click', function (e) { e.stopPropagation(); reset(); });
+    avatar.addEventListener('click', function () { input.click(); });
 
     input.addEventListener('change', function () {
       load(input.files[0]);
       input.value = '';
     });
 
-    ['dragenter', 'dragover'].forEach(function (name) {
-      drop.addEventListener(name, function (e) {
-        e.preventDefault();
-        drop.classList.add('is-over');
-      });
+    ['dragenter', 'dragover'].forEach(function (n) {
+      wrap.addEventListener(n, function (e) { e.preventDefault(); wrap.classList.add('is-over'); });
     });
-
-    ['dragleave', 'dragend', 'drop'].forEach(function (name) {
-      drop.addEventListener(name, function (e) {
-        e.preventDefault();
-        drop.classList.remove('is-over');
-      });
+    ['dragleave', 'dragend', 'drop'].forEach(function (n) {
+      wrap.addEventListener(n, function (e) { e.preventDefault(); wrap.classList.remove('is-over'); });
     });
-
-    drop.addEventListener('drop', function (e) {
-      load(e.dataTransfer.files[0]);
-    });
+    wrap.addEventListener('drop', function (e) { load(e.dataTransfer.files[0]); });
   })();
 
 })();

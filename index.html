@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
 <meta charset="utf-8">
@@ -33,11 +33,16 @@
       <a class="nav-link is-active" href="#main" aria-current="page">Dashboard</a>
       <a class="nav-link" href="#activityCard">Sessions</a>
       <a class="nav-link" href="#compositionCard">Insights</a>
-      <a class="nav-link" href="#profileCard">Profile</a>
+      <a class="nav-link" href="#calendarCard">Calendar</a>
     </nav>
 
     <div class="topbar-actions">
       <span class="status-pill"><span class="status-dot" aria-hidden="true"></span>Connected</span>
+
+      <button class="setting-pill" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2M12 18.5v2M3.5 12h2M18.5 12h2M6 6l1.4 1.4M16.6 16.6L18 18M18 6l-1.4 1.4M7.4 16.6 6 18"/></svg>
+        Settings
+      </button>
 
       <button class="icon-btn has-badge" type="button" aria-label="Notifications">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16v-5a6 6 0 1 0-12 0v5l-2 2h16l-2-2Z"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>
@@ -47,9 +52,14 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>
       </button>
 
-      <button class="avatar-btn" id="navAvatar" type="button" aria-label="Your profile">
-        <span class="avatar-initials" id="navInitials">PP</span>
-      </button>
+      <div class="avatar-wrap">
+        <button class="avatar-btn" id="navAvatar" type="button"
+                aria-label="Upload a profile photo. Click or drop an image here.">
+          <span class="avatar-initials" id="navInitials">PP</span>
+        </button>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
+        <p class="avatar-msg" id="uploadError" role="alert" hidden></p>
+      </div>
     </div>
 
   </div>
@@ -85,6 +95,9 @@
         </li>
       </ul>
     </div>
+  
+    
+
   </section>
 
   <!-- ── primary cards ────────────────────────────────────── -->
@@ -102,6 +115,26 @@
       <h2 class="card-eyebrow">Independence score</h2>
       <p class="card-delta" id="scoreDelta">+0.4 vs. your baseline (93)</p>
       <p class="card-note">Steady, right around your own baseline.</p>
+    </article>
+
+    <article class="card card-tilt span-3" id="coinsCard">
+      <h2 class="card-title">Autonomize Coins</h2>
+      <p class="card-sub">Earned for work you finish yourself</p>
+
+      <div class="coin-hero">
+        <img class="coin" src="coin.png" alt="" width="60" height="60">
+        <p class="coin-balance" id="coinBalance">0</p>
+        <p class="coin-delta" id="coinDelta"></p>
+      </div>
+
+      <div class="coin-tier">
+        <p class="coin-tier-row"><span id="coinTier">—</span><span id="coinNext"></span></p>
+        <div class="coin-track"><span class="coin-fill" id="coinFill"></span></div>
+      </div>
+
+      <ul class="coin-ledger" id="coinLedger"></ul>
+
+      <p class="coin-rule">+10 for a session with nothing pasted &middot; &minus;1 for every 100 characters pasted</p>
     </article>
 
     <article class="card card-tilt span-3">
@@ -128,35 +161,9 @@
       <p class="card-note">tracked today</p>
     </article>
 
-    <article class="card card-tilt span-3" id="profileCard">
-      <h2 class="card-title">Your profile</h2>
-      <p class="card-sub">Shown only to you</p>
+    
 
-      <div class="uploader" id="dropzone" tabindex="0" role="button"
-           aria-label="Upload a profile photo. Click, press Enter, or drop an image here.">
-        <img class="uploader-img" id="previewImg" alt="" hidden>
-        <div class="uploader-empty" id="uploaderEmpty">
-          <span class="uploader-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
-          </span>
-          <p class="uploader-title">Add a photo</p>
-          <p class="uploader-hint">Click or drop an image<br>JPG, PNG or WebP · max 2 MB</p>
-        </div>
-        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" hidden>
-      </div>
-
-      <p class="uploader-error" id="uploadError" role="alert" hidden></p>
-
-      <div class="profile-meta">
-        <p class="profile-name">Priyanshu Kumar Patel</p>
-        <p class="profile-role">Branch IT-03 · Telemetry active</p>
-      </div>
-
-      <div class="profile-actions">
-        <button class="btn btn-primary" id="changeBtn" type="button">Change photo</button>
-        <button class="btn btn-ghost" id="removeBtn" type="button" hidden>Remove</button>
-      </div>
-    </article>
+    
 
   </section>
 
@@ -185,36 +192,7 @@
       </p>
     </article>
 
-    <article class="card card-tilt span-4" id="activityCard">
-      <h2 class="card-title">Recent activity</h2>
-      <p class="card-sub">Across every tracked category</p>
-      <ul class="session-list" id="sessionList"></ul>
-    </article>
-
-  </section>
-
-  <!-- ── heatmap + profile ────────────────────────────────── -->
-  <section class="grid" aria-label="Activity and profile">
-
-    <article class="card card-tilt span-8">
-      <header class="card-head">
-        <div>
-          <h2 class="card-title">Activity</h2>
-          <p class="card-sub">92 active days in the last 20 weeks</p>
-        </div>
-        <p class="streak"><strong>0</strong> day streak <span>best 17</span></p>
-      </header>
-
-      <div class="heatmap" id="heatmap"></div>
-
-      <footer class="heat-foot">
-        <span class="legend-item"><i class="swatch swatch-flag"></i>flagged graded session</span>
-        <span class="scale">Less
-          <i class="scale-box l0"></i><i class="scale-box l1"></i><i class="scale-box l2"></i>
-          <i class="scale-box l3"></i><i class="scale-box l4"></i>
-        More</span>
-      </footer>
-    </article>
+    
 
     <article class="card card-tilt span-4">
       <h2 class="card-title">Exam &amp; assignment integrity</h2>
@@ -230,6 +208,48 @@
         <h3 class="panel-dark-title">Recent graded sessions</h3>
         <ul class="graded-list" id="gradedList"></ul>
       </div>
+    </article>
+
+  </section>
+
+  <!-- ── activity calendar ─────────────────────────────────── -->
+  <section class="grid" aria-label="Activity calendar">
+
+    <article class="card card-tilt span-8" id="calendarCard">
+      <header class="card-head">
+        <div>
+          <h2 class="card-title">Activity calendar</h2>
+          <p class="card-sub">Pick a day to see what you typed and what you pasted, site by site</p>
+        </div>
+        <div class="cal-nav">
+          <button class="cal-arrow" id="calPrev" type="button" aria-label="Previous month">&#8249;</button>
+          <span class="cal-month" id="calMonth">August 2026</span>
+          <button class="cal-arrow" id="calNext" type="button" aria-label="Next month">&#8250;</button>
+        </div>
+      </header>
+
+      <div class="cal-body">
+        <div class="cal-side">
+          <div class="cal-dows" aria-hidden="true">
+            <span>Su</span><span>Mo</span><span>Tu</span><span>We</span>
+            <span>Th</span><span>Fr</span><span>Sa</span>
+          </div>
+          <div class="cal-grid" id="calGrid" role="grid" aria-label="Days of the month"></div>
+          <footer class="cal-legend">
+            <span class="legend-item"><i class="dot-key k1"></i>light</span>
+            <span class="legend-item"><i class="dot-key k3"></i>heavy</span>
+            <span class="legend-item"><i class="dot-key flagged"></i>flagged graded session</span>
+          </footer>
+        </div>
+
+        <div class="cal-detail" id="calDetail"></div>
+      </div>
+    </article>
+
+    <article class="card card-tilt span-4" id="activityCard">
+      <h2 class="card-title">Recent activity</h2>
+      <p class="card-sub">Across every tracked category</p>
+      <ul class="session-list" id="sessionList"></ul>
     </article>
 
   </section>
